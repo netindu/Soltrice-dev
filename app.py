@@ -6,7 +6,7 @@ import pandas as pd
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, root_validator
+from pydantic import BaseModel, Field, model_validator
 from sklearn.compose import ColumnTransformer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
@@ -89,8 +89,9 @@ class FraudRequest(BaseModel):
     failed_attempts_last_24h: int = Field(0, example=0)
     ip_country_matches_id_country: Literal["yes", "no"] = Field("yes", example="yes")
 
-    @root_validator(pre=True)
+    @model_validator(mode="before")
     def normalize_ui_to_model_fields(cls, values):
+
         # amount -> rental_amount
         if values.get("rental_amount") is None and values.get("amount") is not None:
             values["rental_amount"] = values["amount"]
@@ -120,8 +121,8 @@ class FraudRequest(BaseModel):
 
         return values
 
-    @root_validator
-    def ensure_minimums_for_model(cls, values):
+    @model_validator(mode="after")
+    def ensure_minimums_for_model(cls):
         """
         Make sure the ML pipeline always receives valid values
         for required model columns. This prevents 'missing column' issues.
@@ -140,7 +141,7 @@ class FraudRequest(BaseModel):
         if values.get("previous_chargebacks_count") is None:
             values["previous_chargebacks_count"] = 0
 
-        return values
+        return cls
 
 
 class FraudResponse(BaseModel):
