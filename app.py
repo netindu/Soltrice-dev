@@ -1,5 +1,5 @@
 import os
-from typing import Literal, Optional
+from typing import Literal, Optional, Any
 
 import joblib
 import pandas as pd
@@ -13,6 +13,7 @@ from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
+
 
 # ============================================================
 # 1. CONFIG
@@ -40,6 +41,7 @@ categorical_features = [
     "billing_matches_id",
     "ip_country_matches_id_country",
 ]
+
 
 # ============================================================
 # 2. REQUEST / RESPONSE SCHEMAS
@@ -90,7 +92,11 @@ class FraudRequest(BaseModel):
     ip_country_matches_id_country: Literal["yes", "no"] = Field("yes", example="yes")
 
     @model_validator(mode="before")
-    def normalize_ui_to_model_fields(cls, values):
+    @classmethod
+    def normalize_ui_to_model_fields(cls, values: Any):
+        # values is typically a dict when parsing JSON
+        if not isinstance(values, dict):
+            return values
 
         # amount -> rental_amount
         if values.get("rental_amount") is None and values.get("amount") is not None:
@@ -100,7 +106,7 @@ class FraudRequest(BaseModel):
         if values.get("distance_from_home_to_branch_km") is None and values.get("geoDistance") is not None:
             values["distance_from_home_to_branch_km"] = values["geoDistance"]
 
-        # driverAge -> customer_age (best proxy in current model)
+        # driverAge -> customer_age
         if values.get("customer_age") is None and values.get("driverAge") is not None:
             values["customer_age"] = values["driverAge"]
 
@@ -122,26 +128,31 @@ class FraudRequest(BaseModel):
         return values
 
     @model_validator(mode="after")
-    def ensure_minimums_for_model(cls):
+    def ensure_minimums_for_model(self):
         """
-        Make sure the ML pipeline always receives valid values
-        for required model columns. This prevents 'missing column' issues.
+        Make sure the ML pipeline always receives valid values for required model columns.
+        This prevents 'missing column' or None-related issues.
         """
-        # These are required by the pipeline numeric_features
-        if values.get("rental_amount") is None:
-            values["rental_amount"] = 180.0  # safe demo default
-        if values.get("distance_from_home_to_branch_km") is None:
-            values["distance_from_home_to_branch_km"] = 10.0
-        if values.get("customer_age") is None:
-            values["customer_age"] = 35
-        if values.get("customer_tenure_days") is None:
-            values["customer_tenure_days"] = 180
-        if values.get("previous_rentals_count") is None:
-            values["previous_rentals_count"] = 1
-        if values.get("previous_chargebacks_count") is None:
-            values["previous_chargebacks_count"] = 0
 
-        return cls
+        # Required numerics for the pipeline
+        if self.rental_amount is None:
+            self.rental_amount = 180.0
+        if self.distance_from_home_to_branch_km is None:
+            self.distance_from_home_to_branch_km = 10.0
+        if self.customer_age is None:
+            self.customer_age = 35
+        if self.customer_tenure_days is None:
+            self.customer_tenure_days = 180
+        if self.previous_rentals_count is None:
+            self.previous_rentals_count = 1
+        if self.previous_chargebacks_count is None:
+            self.previous_chargebacks_count = 0
+
+        # Keep lead_time_hours sane
+        if self.lead_time_hours is None:
+            self.lead_time_hours = 24
+
+        return self
 
 
 class FraudResponse(BaseModel):
@@ -190,7 +201,9 @@ def train_and_save_model(data_path: str = DATA_PATH, model_path: str = MODEL_PAT
     if "is_fraud" not in df.columns:
         raise ValueError("Column 'is_fraud' is missing from the dataset.")
 
-    X = df.drop(columns=["is_fraud", "customer_tier"])
+    # Keep consistent columns
+    drop_cols = [c for c in ["is_fraud", "customer_tier"] if c in df.columns]
+    X = df.drop(columns=drop_cols)
     y = df["is_fraud"]
 
     clf = build_pipeline()
@@ -246,9 +259,9 @@ def customer_tier_from_features_and_risk(req: FraudRequest, risk_bucket: str) ->
 
     if (
         risk_bucket == "Low"
-        and req.customer_tenure_days > 300
-        and req.previous_rentals_count >= 3
-        and req.previous_chargebacks_count == 0
+        and (req.customer_tenure_days or 0) > 300
+        and (req.previous_rentals_count or 0) >= 3
+        and (req.previous_chargebacks_count or 0) == 0
     ):
         return "Premium"
 
@@ -256,8 +269,13 @@ def customer_tier_from_features_and_risk(req: FraudRequest, risk_bucket: str) ->
 
 
 def heuristic_risk_from_features(req: FraudRequest) -> float:
+    """
+    Simple rule-based risk score in [0,1] for demo purposes.
+    We will blend this with the ML model output so the UI feels intuitive.
+    """
     risk = 0.0
 
+    # Rental amount
     if req.rental_amount > 800:
         risk += 0.25
     elif req.rental_amount > 400:
@@ -265,16 +283,19 @@ def heuristic_risk_from_features(req: FraudRequest) -> float:
     elif req.rental_amount > 200:
         risk += 0.08
 
+    # Lead time
     if req.lead_time_hours < 4:
         risk += 0.15
     elif req.lead_time_hours < 12:
         risk += 0.10
 
+    # Distance
     if req.distance_from_home_to_branch_km > 150:
         risk += 0.10
     elif req.distance_from_home_to_branch_km > 80:
         risk += 0.05
 
+    # Customer history
     if req.previous_rentals_count == 0:
         risk += 0.05
     if req.previous_chargebacks_count >= 2:
@@ -282,6 +303,7 @@ def heuristic_risk_from_features(req: FraudRequest) -> float:
     elif req.previous_chargebacks_count == 1:
         risk += 0.30
 
+    # Payment & identity
     if req.card_present == "no":
         risk += 0.10
     if req.same_name_on_card == "no":
@@ -289,6 +311,7 @@ def heuristic_risk_from_features(req: FraudRequest) -> float:
     if req.billing_matches_id == "no":
         risk += 0.10
 
+    # Behaviour
     if req.failed_attempts_last_24h >= 5:
         risk += 0.15
     elif req.failed_attempts_last_24h >= 1:
@@ -297,8 +320,7 @@ def heuristic_risk_from_features(req: FraudRequest) -> float:
     if req.ip_country_matches_id_country == "no":
         risk += 0.10
 
-    risk = max(0.01, min(0.99, risk))
-    return risk
+    return max(0.01, min(0.99, risk))
 
 
 # ============================================================
@@ -313,7 +335,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # later restrict to ["https://soltrice.com"]
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
@@ -327,20 +349,37 @@ def health_check():
     return {"status": "ok", "model_version": model_version, "auc": last_auc}
 
 
+@app.options("/score")
+def options_score():
+    return JSONResponse(
+        content={},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS, GET",
+            "Access-Control-Allow-Headers": "*",
+        },
+    )
+
+
 @app.post("/score", response_model=FraudResponse)
 def score(request: FraudRequest):
     try:
+        # Pydantic v2: model_dump
+        row = request.model_dump()
+
         # IMPORTANT: only pass the columns the pipeline expects
-        row = request.dict()
         data = pd.DataFrame([row])[numeric_features + categorical_features]
 
+        # 1) ML model probability
         try:
             proba_model = float(model_pipeline.predict_proba(data)[0, 1])
         except Exception:
             proba_model = 0.5
 
+        # 2) Heuristic probability
         proba_rule = heuristic_risk_from_features(request)
 
+        # 3) Blend them
         blended_proba = 0.6 * proba_model + 0.4 * proba_rule
 
         risk_bucket = risk_bucket_from_probability(blended_proba)
@@ -357,30 +396,12 @@ def score(request: FraudRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.options("/score")
-def options_score():
-    return JSONResponse(
-        content={},
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "POST, OPTIONS, GET",
-            "Access-Control-Allow-Headers": "*",
-        },
-    )
-
-
 # ============================================================
-# 6. ENTRY POINT
+# 6. ENTRY POINT (local dev)
 # ============================================================
 
 if __name__ == "__main__":
     import uvicorn
 
     port = int(os.environ.get("PORT", 8000))
-
-    uvicorn.run(
-        "app:app",
-        host="0.0.0.0",
-        port=port,
-        reload=False,
-    )
+    uvicorn.run("app:app", host="0.0.0.0", port=port, reload=False)
