@@ -1,5 +1,9 @@
 const API_URL = "https://soltrice-sfm-api.onrender.com/score";
 
+const HEALTH_URL = API_URL.replace(/\/score$/, "/health");
+fetch(HEALTH_URL, { cache: "no-store" }).catch(() => {});
+
+
 /* =======================
    Helpers
 ======================= */
@@ -312,11 +316,21 @@ function requestScoreDebounced(inputs, delay = 250) {
 
   // quick UI hint while waiting
   const metaEl = document.getElementById("sphereMeta");
-  if (metaEl) metaEl.textContent = "Warming up API…";
+
+  // Show a neutral message only if the API call is taking noticeable time
+  let slowMsgTimer = null;
+  if (metaEl) {
+    slowMsgTimer = setTimeout(() => {
+      metaEl.textContent = "Updating score…";
+    }, 600); // only show if request is slower than 600ms
+  }
+
 
   scoreTimer = setTimeout(async () => {
     try {
       const data = await scoreWithApi(inputs);
+      if (slowMsgTimer) clearTimeout(slowMsgTimer);
+
 
       // API returns fraud_probability (0..1). Convert to 0..100 like your UI expects.
       const score = Math.round(clamp((data.fraud_probability ?? 0.5) * 100, 0, 100));
