@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Soltrice Fraud Risk Lab</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow">
+
+  <!-- Global theme & layout (background, left panel, fonts) -->
+  <link rel="stylesheet" href="theme.css" />
+
+  <!-- Sphere visuals (orbit, rings, score look) -->
+  <link rel="stylesheet" href="sphere.css" />
+
+  <!-- Explainability & breakdown visuals -->
+  <link rel="stylesheet" href="explainability.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div class="content">
+      <header>
+        <div class="brand">
+          <div class="brand-title">
+            <span class="logo-dot"></span>
+            SOLTRICE
+          </div>
+          <div class="brand-pill">AI Fraud Risk Lab</div>
+        </div>
+        <div class="header-right">
+          <div class="chip-row">
+            <div class="chip">Live scoring · Demo</div>
+            <div class="chip">Transaction · Device · Identity · Driver</div>
+          </div>
+          <div>Adjust the sliders and fields. Soltrice recalculates in real time.</div>
+        </div>
+      </header>
+
+      <main>
+        <!-- LEFT: INPUTS (Decision criteria + form) -->
+        <section class="panel">
+          <div class="panel-title">
+            <span>Signal Inputs</span>
+            <span class="label-pill">Synthetic demo · Not production data</span>
+          </div>
+
+          <!-- Section 1: Customer & Driver -->
+          <div class="section-group">
+            <div class="section-header">
+              <div class="section-header-title">
+                <span>Customer & Driver Profile</span>
+              </div>
+              <div class="section-tag">Identity · History · Experience</div>
+            </div>
+            <div class="field-grid">
+              <div class="field">
+                <div class="field-label">
+                  <span class="key">
+                    Email age (months)
+                    <span class="mono">email</span>
+                  </span>
+                  <span class="badge">Older is safer</span>
+                </div>
+                <input type="range" min="0" max="120" value="24" id="emailAge" />
+                <div class="field-value-display" id="emailAgeDisplay">24 months</div>
+              </div>
+
+              <div class="field">
+                <div class="field-label">
+                  <span class="key">
+                    Customer tenure (months)
+                    <span class="mono">history</span>
+                  </span>
+                  <span class="badge">Loyalty</span>
+                </div>
+                <input type="range" min="0" max="240" value="60" id="tenure" />
+                <div class="field-value-display" id="tenureDisplay">60 months</div>
+              </div>
+
+              <div class="field">
+                <div class="field-label">
+                  <span class="key">
+                    Chargeback rate (%)
+                    <span class="mono">disputes</span>
+                  </span>
+                  <span class="badge">Higher is riskier</span>
+                </div>
+                <input type="range" min="0" max="30" value="2" id="chargebacks" />
+                <div class="field-value-display" id="chargebacksDisplay">2 %</div>
+              </div>
+
+              <div class="field">
+                <div class="field-label">
+                  <span class="key">
+                    Known premium flag
+                    <span class="mono">vip</span>
+                  </span>
+                  <span class="badge">0/1</span>
+                </div>
+                <input type="number" min="0" max="1" value="0" id="premiumFlag" />
+              </div>
+
+              <div class="field">
+                <div class="field-label">
+                  <span class="key">
+                    Driver age (years)
+                    <span class="mono">age</span>
+                  </span>
+                  <span class="badge">Younger = riskier</span>
+                </div>
+                <input type="range" min="18" max="80" value="35" id="driverAge" />
+                <div class="field-value-display" id="driverAgeDisplay">35 years</div>
+              </div>
+
+              <div class="field">
+                <div class="field-label">
+                  <span class="key">
+                    License years
+                    <span class="mono">license</span>
+                  </span>
+                  <span class="badge">Experience</span>
+                </div>
+                <input type="range" min="0" max="40" value="10" id="licenseYears" />
+                <div class="field-value-display" id="licenseYearsDisplay">10 years</div>
+              </div>
+
+              <div class="field">
+                <div class="field-label">
+                  <span class="key">
+                    Previous rentals
+                    <span class="mono">rentals</span>
+                  </span>
+                  <span class="badge">History lowers risk</span>
+                </div>
+                <input type="range" min="0" max="50" value="8" id="previousRentals" />
+                <div class="field-value-display" id="previousRentalsDisplay">8 rentals</div>
+              </div>
+
+              <div class="field">
+                <div class="field-label">
+                  <span class="key">
+                    Phone type
+                    <span class="mono">phone</span>
+                  </span>
+                  <span class="badge">VoIP is riskier</span>
+                </div>
+                <select id="phoneType">
+                  <option value="0">Landline / office</option>
+                  <option value="1" selected>Mobile · verified</option>
+                  <option value="2">VoIP / app-based</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 2: Transaction -->
+          <div class="section-group">
+            <div class="section-header">
+              <div class="section-header-title">
+                <span>Transaction Context</span>
+              </div>
+              <div class="section-tag">Amount · Velocity</div>
+            </div>
+            <div class="field-grid">
+              <div class="field">
+                <div class="field-label">
+                  <span class="key">
+                    Transaction amount ($)
+                    <span class="mono">amount</span>
+                  </span>
+                  <span class="badge">Relative to norm</span>
+                </div>
+                <input type="range" min="0" max="5000" value="180" id="amount" />
+                <div class="field-value-display" id="amountDisplay">$180</div>
+              </div>
+
+              <div class="field">
+                <div class="field-label">
+                  <span class="key">
+                    24h transaction count
+                    <span class="mono">velocity</span>
+                  </span>
+                  <span class="badge">Spikes are risky</span>
+                </div>
+                <input type="range" min="0" max="40" value="3" id="velocity" />
+                <div class="field-value-display" id="velocityDisplay">3 tx</div>
+              </div>
+
+              <div class="field">
+                <div class="field-label">
+                  <span class="key">
+                    BIN risk score
+                    <span class="mono">bin</span>
+                  </span>
+                  <span class="badge">0–100</span>
+                </div>
+                <input type="range" min="0" max="100" value="30" id="binRisk" />
+                <div class="field-value-display" id="binRiskDisplay">30 / 100</div>
+              </div>
+
+              <div class="field">
+                <div class="field-label">
+                  <span class="key">
+                    Weekend / odd hour
+                    <span class="mono">timing</span>
+                  </span>
+                  <span class="badge">0 normal · 1 odd</span>
+                </div>
+                <input type="number" min="0" max="1" value="0" id="oddHour" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 3: Device & IP -->
+          <div class="section-group">
+            <div class="section-header">
+              <div class="section-header-title">
+                <span>Device & Network</span>
+              </div>
+              <div class="section-tag">Fingerprint · IP · Geo</div>
+            </div>
+            <div class="field-grid">
+              <div class="field">
+                <div class="field-label">
+                  <span class="key">
+                    Device trust score
+                    <span class="mono">device</span>
+                  </span>
+                  <span class="badge">Higher is safer</span>
+                </div>
+                <input type="range" min="0" max="100" value="70" id="deviceTrust" />
+                <div class="field-value-display" id="deviceTrustDisplay">70 / 100</div>
+              </div>
+
+              <div class="field">
+                <div class="field-label">
+                  <span class="key">
+                    IP reputation risk
+                    <span class="mono">ip</span>
+                  </span>
+                  <span class="badge">0–100</span>
+                </div>
+                <input type="range" min="0" max="100" value="20" id="ipRisk" />
+                <div class="field-value-display" id="ipRiskDisplay">20 / 100</div>
+              </div>
+
+              <div class="field">
+                <div class="field-label">
+                  <span class="key">
+                    Geo distance mismatch (km)
+                    <span class="mono">geo</span>
+                  </span>
+                  <span class="badge">Billing vs device</span>
+                </div>
+                <input type="range" min="0" max="2000" value="80" id="geoDistance" />
+                <div class="field-value-display" id="geoDistanceDisplay">80 km</div>
+              </div>
+
+              <div class="field">
+                <div class="field-label">
+                  <span class="key">
+                    Proxy / VPN detected
+                    <span class="mono">proxy</span>
+                  </span>
+                  <span class="badge">0 no · 1 yes</span>
+                </div>
+                <input type="number" min="0" max="1" value="0" id="proxyFlag" />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- RIGHT: SPHERE + EXPLAINABILITY -->
+        <section class="right-panel">
+          <!-- 2️⃣ SPHERE BLOCK -->
+          <div class="sphere-card">
+            <div class="sphere-header">
+              <span>AI Risk Score</span>
+              <span id="scoreTierLabel">Premium Customer · Gold</span>
+            </div>
+
+            <div class="sphere-main">
+              <!-- NEW: column = sphere + caption -->
+              <div class="sphere-column">
+                <div class="sphere-wrapper">
+                  <div class="sphere-orbit">
+                    <!-- Outer dotted orbit -->
+                    <div class="sphere-orbit-ring sphere-orbit-outer"></div>
+
+                    <!-- Middle rotating ring -->
+                    <div class="sphere-orbit-ring sphere-orbit-middle"></div>
+
+                    <!-- Inner rotating ring -->
+                    <div class="sphere-orbit-ring sphere-orbit-inner"></div>
+
+                    <!-- Core sphere -->
+                    <div class="risk-sphere" id="riskSphere">
+                      <div class="sphere-core">
+                        <div class="sphere-core-overlay"></div>
+
+                        <div class="sphere-text-pill">
+                          <div class="score-number" id="scoreNumber">
+                            8<span class="unit">/ 100</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- caption moved OUTSIDE the orb -->
+                <p class="sphere-caption" id="sphereMeta">
+                  Very low risk · Stable profile
+                </p>
+              </div>
+
+              <!-- 3️⃣ EXPLAINABILITY SUMMARY (top-right side) -->
+              <div class="sphere-side-info">
+                <div class="risk-badge" id="riskBadge">
+                  ● Overall assessment: Very Low Risk
+                </div>
+                <div>
+                  <div class="risk-bar">
+                    <div class="risk-bar-marker" id="riskBarMarker" style="left: 8%;"></div>
+                  </div>
+                  <div class="risk-bar-labels">
+                    <span>Premium</span>
+                    <span>Elevated</span>
+                    <span>Critical</span>
+                  </div>
+                </div>
+                <div class="insight-block">
+                  <div class="insight-label">AI Insight</div>
+                  <div id="insightText">
+                    Strong customer history, low chargebacks, and trusted device significantly
+                    reduce risk. Mild concern from BIN score and geo distance, but within tolerance.
+                  </div>
+                  <div class="pattern-tags" id="patternTags">
+                    <!-- Tags injected by JS -->
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3️⃣ EXPLAINABILITY BREAKDOWN (bottom card) -->
+          <div class="breakdown-card">
+            <div class="breakdown-header">
+              <span>Signal Contribution Breakdown</span>
+              <span>Weights shown are illustrative</span>
+            </div>
+            <table class="breakdown-table">
+              <thead>
+                <tr>
+                  <th>Signal</th>
+                  <th>Status</th>
+                  <th style="text-align:right;">Impact</th>
+                </tr>
+              </thead>
+              <tbody id="breakdownBody">
+                <!-- Rows injected by JS -->
+              </tbody>
+            </table>
+            <div class="footer-note">
+              Soltrice blends transaction, driver, device, and identity patterns into a single score.
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <!-- 1️⃣ Logic + left-side wiring -->
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,254 @@
+/* Sphere card layout */
+.sphere-card {
+  flex: 1;
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  background:
+    radial-gradient(circle at top, rgba(15, 23, 42, 0.95), rgba(15, 23, 42, 0.8));
+  backdrop-filter: blur(14px);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow:
+    0 0 30px rgba(15, 23, 42, 0.8),
+    0 0 70px rgba(30, 64, 175, 0.4);
+}
+
+.sphere-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+.sphere-main {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 10px;
+  align-items: flex-start; /* stops jumping */
+}
+
+@media (max-width: 900px) {
+  .sphere-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* NEW: column wrapper = orb + caption */
+.sphere-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.sphere-caption {
+  max-width: 260px;
+  text-align: center;
+}
+
+.sphere-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  align-self: flex-start;
+  min-height: 240px;
+}
+
+/* Orbit + sphere structure */
+.sphere-orbit {
+  position: relative;
+  width: 230px;
+  height: 230px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sphere-orbit-ring {
+  position: absolute;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+/* Outer dotted orbit */
+.sphere-orbit-outer {
+  width: 220px;
+  height: 220px;
+  border: 1.8px dashed rgba(209, 213, 219, 0.95);
+  box-shadow:
+    0 0 12px rgba(148, 163, 184, 0.8),
+    0 0 40px rgba(15, 23, 42, 0.9);
+  animation: orbitOuter 26s linear infinite;
+}
+
+/* Middle rotating ring */
+.sphere-orbit-middle {
+  width: 204px;
+  height: 204px;
+  border: 1.4px solid transparent;
+  background:
+    conic-gradient(
+      from 0deg,
+      rgba(148, 163, 184, 0.08),
+      rgba(148, 163, 184, 0.7),
+      rgba(148, 163, 184, 0.08)
+    );
+  mask:
+    radial-gradient(farthest-side, transparent 68%, black 72%);
+  border-radius: 999px;
+  opacity: 0.9;
+  animation: orbitMiddle 18s linear infinite;
+}
+
+/* Inner rotating ring */
+.sphere-orbit-inner {
+  width: 188px;
+  height: 188px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.55);
+  box-shadow:
+    0 0 10px rgba(148, 163, 184, 0.6),
+    0 0 26px rgba(15, 23, 42, 0.85);
+  opacity: 0.9;
+  animation: orbitInner 22s linear infinite;
+}
+
+/* Core orb */
+.risk-sphere {
+  width: 170px;
+  height: 170px;
+  border-radius: 999px;
+  background:
+  radial-gradient(circle at 30% 15%, #fefefe, var(--sphere-color)),
+  radial-gradient(circle at center, rgba(255, 232, 145, 0.12), transparent 70%);
+  box-shadow:
+	  0 0 22px var(--sphere-glow),
+	  0 0 38px rgba(15, 23, 42, 0.55),   /* softened from 0.95 */
+	  0 0 70px rgba(17, 94, 163, 0.45);  /* softened blue aura */
+	 
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: sphereBreath 10s ease-in-out infinite;
+}
+
+.sphere-core {
+  position: relative;
+  width: 82%;
+  height: 82%;
+  border-radius: inherit;
+  overflow: hidden;
+}
+
+.sphere-core-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 20% 10%, rgba(255, 255, 255, 0.25), transparent 55%),
+    radial-gradient(circle at 70% 90%, rgba(15, 23, 42, 0.3), transparent 65%);
+  opacity: 0.9;
+}
+
+/* Score text – pill is handled by #scoreNumber in theme.css */
+/* Center the score pill perfectly inside the sphere */
+.sphere-text-pill {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: none;
+}
+
+
+.score-number {
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* old .sphere-meta is no longer used for layout; #sphereMeta is styled in theme.css */
+
+/* Side info (risk label + bar + insight card) */
+.sphere-side-info {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 0.8rem;
+}
+
+/* Risk badge + bar */
+.risk-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  border: 1px solid rgba(148, 163, 184, 0.7);
+  background: radial-gradient(circle at top, rgba(15, 23, 42, 0.95), rgba(15, 23, 42, 0.8));
+}
+
+.risk-bar {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #22c55e, #eab308, #f97316, #ef4444, #991b1b);
+  position: relative;
+  overflow: hidden;
+}
+
+.risk-bar-marker {
+  position: absolute;
+  top: -4px;
+  width: 2px;
+  height: 14px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  box-shadow:
+    0 0 6px rgba(248, 250, 252, 0.9),
+    0 0 18px rgba(56, 189, 248, 0.95);
+  transition: left 0.25s ease-out;
+}
+
+.risk-bar-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font-size: 0.68rem;
+  color: #9ca3af;
+}
+
+/* Animations */
+@keyframes orbitOuter {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes orbitMiddle {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(-360deg); }
+}
+
+@keyframes orbitInner {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes sphereBreath {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.02); }
+}
