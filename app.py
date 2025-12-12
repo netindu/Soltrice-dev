@@ -344,6 +344,39 @@ def heuristic_risk_from_features(req: FraudRequest) -> float:
 
     # ===== DEMO UI signals (make sliders actually matter) =====
 
+    # License years (0..50) -> new drivers riskier
+    if req.licenseYears is not None:
+        y = max(0, min(50, req.licenseYears))
+        if y < 1:
+            risk += 0.12
+        elif y < 3:
+            risk += 0.06
+        elif y >= 10:
+            risk -= 0.04
+
+    # Premium/VIP flag (0/1) -> slightly safer
+    if req.premiumFlag:
+        risk -= 0.06
+
+    # Tenure (months) -> longer relationship is safer (small, smooth effect)
+    if req.tenure is not None:
+        m = max(0, min(240, req.tenure))
+        if m >= 60:
+            risk -= 0.05
+        elif m >= 24:
+            risk -= 0.03
+        elif m < 3:
+            risk += 0.04
+
+    # Driver age -> very young drivers slightly riskier, older slightly safer
+    if req.customer_age is not None:
+        a = max(16, min(90, req.customer_age))
+        if a < 21:
+            risk += 0.06
+        elif a >= 65:
+            risk -= 0.03
+
+
     # BIN risk (0..100) -> up to +0.25 risk
     if req.binRisk is not None:
         risk += (max(0, min(100, req.binRisk)) / 100.0) * 0.25
