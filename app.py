@@ -125,6 +125,23 @@ class FraudRequest(BaseModel):
         if values.get("previous_chargebacks_count") is None and values.get("chargebacks") is not None:
             values["previous_chargebacks_count"] = values["chargebacks"]
 
+        # Support alternate UI naming (older demos / curl)
+        if values.get("tenure") is None and values.get("customerTenure") is not None:
+            values["tenure"] = values["customerTenure"]
+
+        if values.get("chargebacks") is None and values.get("chargebackRate") is not None:
+            # if it's a percent, you can map to an approximate count for demo
+            try:
+                values["chargebacks"] = int(round(float(values["chargebackRate"])))
+            except Exception:
+                pass
+
+        if values.get("amount") is None and values.get("rentalAmount") is not None:
+            values["amount"] = values["rentalAmount"]
+
+        if values.get("velocity") is None and values.get("velocity24h") is not None:
+            values["velocity"] = values["velocity24h"]
+
         return values
 
     @model_validator(mode="after")
@@ -275,6 +292,11 @@ def heuristic_risk_from_features(req: FraudRequest) -> float:
     """
     risk = 0.0
 
+    # Geo distance already mapped to distance_from_home_to_branch_km, but keep UI direct too
+    # Ensure UI geoDistance is reflected in model distance before scoring logic
+    if req.distance_from_home_to_branch_km is None and req.geoDistance is not None:
+        req.distance_from_home_to_branch_km = float(req.geoDistance)
+
     # Rental amount
     if req.rental_amount > 800:
         risk += 0.25
@@ -319,6 +341,42 @@ def heuristic_risk_from_features(req: FraudRequest) -> float:
 
     if req.ip_country_matches_id_country == "no":
         risk += 0.10
+
+    # ===== DEMO UI signals (make sliders actually matter) =====
+
+    # BIN risk (0..100) -> up to +0.25 risk
+    if req.binRisk is not None:
+        risk += (max(0, min(100, req.binRisk)) / 100.0) * 0.25
+
+    # Velocity (0..40) -> up to +0.20 risk
+    if req.velocity is not None:
+        risk += (max(0, min(40, req.velocity)) / 40.0) * 0.20
+
+    # Odd hour (0/1) -> +0.10
+    if req.oddHour:
+        risk += 0.10
+
+    # Proxy/VPN (0/1) -> +0.18
+    if req.proxyFlag:
+        risk += 0.18
+
+    # IP risk (0..100) -> up to +0.15
+    if req.ipRisk is not None:
+        risk += (max(0, min(100, req.ipRisk)) / 100.0) * 0.15
+
+    # Device trust (0..100), higher is safer -> up to -0.12
+    if req.deviceTrust is not None:
+        risk -= (max(0, min(100, req.deviceTrust)) / 100.0) * 0.12
+
+    # Email age (months) -> newer is riskier (up to +0.12)
+    if req.emailAge is not None:
+        m = max(0, min(120, req.emailAge))
+        if m < 6: risk += 0.12
+        elif m < 18: risk += 0.06
+
+    # Phone type (0 landline, 1 verified mobile, 2 voip) -> voip risk
+    if req.phoneType == 2:
+        risk += 0.08
 
     return max(0.01, min(0.99, risk))
 

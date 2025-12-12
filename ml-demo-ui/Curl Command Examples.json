@@ -1,0 +1,25 @@
+Some good Curl commands 
+
+
+One-liner Test 1 (BIN = 0) — fixed
+echo {"emailAge":36,"customerTenure":48,"chargebackRate":1.0,"premiumFlag":1,"driverAge":40,"licenseYears":15,"previousRentals":10,"phoneType":1,"rentalAmount":180,"velocity24h":2,"binRisk":0,"oddHour":0,"deviceTrust":80,"ipRisk":10,"geoDistance":5,"proxyFlag":0} | curl -X POST https://soltrice-sfm-api.onrender.com/score -H "Content-Type: application/json" --data-binary @-
+
+
+ echo {"emailAge":36,"customerTenure":48,"chargebackRate":1.0,"premiumFlag":1,"driverAge":40,"licenseYears":15,"previousRentals":10,"phoneType":1,"rentalAmount":180,"velocity24h":2,"binRisk":0,"oddHour":0,"deviceTrust":80,"ipRisk":10,"geoDistance":5,"proxyFlag":0} | curl -X POST https://soltrice-sfm-api.onrender.com/score -H "Content-Type: application/json" --data-binary @-
+ 
+{"fraud_probability":0.004,"risk_bucket":"Low","customer_tier":"Standard","model_version":"v1.0-logreg","auc_on_last_train":1.0}
+
+
+
+
+
+
+
+
+One-liner Test 2 (BIN = 100) — fixed
+echo {"emailAge":36,"customerTenure":48,"chargebackRate":1.0,"premiumFlag":1,"driverAge":40,"licenseYears":15,"previousRentals":10,"phoneType":1,"rentalAmount":180,"velocity24h":2,"binRisk":100,"oddHour":0,"deviceTrust":80,"ipRisk":10,"geoDistance":5,"proxyFlag":0} | curl -X POST https://soltrice-sfm-api.onrender.com/score -H "Content-Type: application/json" --data-binary @-
+
+
+
+
+

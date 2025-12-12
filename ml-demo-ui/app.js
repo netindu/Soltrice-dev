@@ -488,7 +488,9 @@ function updateUI() {
   updateLabels(inputs);
 
   // Step 3: call API (debounced), with local fallback inside
-  requestScoreDebounced(inputs, 500);
+  //requestScoreDebounced(inputs, 500);
+  requestScoreDebounced(inputs, 150);
+
 }
 
 /* =======================
