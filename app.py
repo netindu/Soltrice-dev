@@ -348,6 +348,10 @@ model_pipeline, last_auc, model_version = load_model()
 def health_check():
     return {"status": "ok", "model_version": model_version, "auc": last_auc}
 
+@app.get("/")
+def root():
+    return {"status": "ok", "service": "soltrice-sfm-api"}
+
 
 @app.options("/score")
 def options_score():
