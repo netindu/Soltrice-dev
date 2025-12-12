@@ -475,7 +475,7 @@ def score(request: FraudRequest):
         proba_rule = heuristic_risk_from_features(request)
 
         # 3) Blend them
-        blended_proba = 0.6 * proba_model + 0.4 * proba_rule
+        blended_proba = 0.8 * proba_model + 0.2 * proba_rule
 
         risk_bucket = risk_bucket_from_probability(blended_proba)
         tier = customer_tier_from_features_and_risk(request, risk_bucket)
