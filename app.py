@@ -1,12 +1,12 @@
 import os
-from typing import Literal
+from typing import Literal, Optional
 
 import joblib
 import pandas as pd
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware   # ✅ NEW
-from fastapi.responses import JSONResponse          # ✅ NEW
-from pydantic import BaseModel, Field
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field, root_validator
 from sklearn.compose import ColumnTransformer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
@@ -41,28 +41,106 @@ categorical_features = [
     "ip_country_matches_id_country",
 ]
 
-
 # ============================================================
 # 2. REQUEST / RESPONSE SCHEMAS
 # ============================================================
 
 class FraudRequest(BaseModel):
-    rental_amount: float = Field(..., example=120.5)
-    rental_duration_days: int = Field(..., example=3)
-    booking_channel: Literal["web", "app", "phone", "walk_in"] = Field(
-        ..., example="web"
-    )
-    lead_time_hours: float = Field(..., example=48)
-    distance_from_home_to_branch_km: float = Field(..., example=12.3)
-    customer_age: int = Field(..., example=42)
-    customer_tenure_days: int = Field(..., example=365)
-    previous_rentals_count: int = Field(..., example=4)
-    previous_chargebacks_count: int = Field(..., example=0)
-    card_present: Literal["yes", "no"] = Field(..., example="yes")
-    same_name_on_card: Literal["yes", "no"] = Field(..., example="yes")
-    billing_matches_id: Literal["yes", "no"] = Field(..., example="yes")
-    failed_attempts_last_24h: int = Field(..., example=0)
-    ip_country_matches_id_country: Literal["yes", "no"] = Field(..., example="yes")
+    """
+    Demo-friendly request model.
+
+    Supports:
+    - UI/demo payload fields (emailAge, tenure, amount, geoDistance, etc.)
+    - Existing model fields (rental_amount, booking_channel, etc.)
+    - Normalizes UI fields into model fields so the pipeline can score.
+    """
+
+    # ---- NEW UI fields (accepted, optional) ----
+    emailAge: Optional[int] = None
+    tenure: Optional[int] = None                  # UI often uses months; we convert to days
+    chargebacks: Optional[int] = None
+    premiumFlag: Optional[int] = None
+    driverAge: Optional[int] = None
+    licenseYears: Optional[int] = None
+    previousRentals: Optional[int] = None
+    phoneType: Optional[int] = None
+    amount: Optional[float] = None                # maps to rental_amount
+    velocity: Optional[int] = None
+    binRisk: Optional[int] = None
+    oddHour: Optional[int] = None
+    deviceTrust: Optional[int] = None
+    ipRisk: Optional[int] = None
+    geoDistance: Optional[float] = None           # maps to distance_from_home_to_branch_km
+    proxyFlag: Optional[int] = None
+
+    # ---- MODEL fields (these are what the ML pipeline actually uses) ----
+    rental_amount: Optional[float] = Field(None, example=120.5)
+    rental_duration_days: int = Field(3, example=3)
+    booking_channel: Literal["web", "app", "phone", "walk_in"] = Field("web", example="web")
+    lead_time_hours: float = Field(24, example=48)
+    distance_from_home_to_branch_km: Optional[float] = Field(None, example=12.3)
+    customer_age: Optional[int] = Field(None, example=42)
+    customer_tenure_days: Optional[int] = Field(None, example=365)
+    previous_rentals_count: Optional[int] = Field(None, example=4)
+    previous_chargebacks_count: Optional[int] = Field(None, example=0)
+    card_present: Literal["yes", "no"] = Field("yes", example="yes")
+    same_name_on_card: Literal["yes", "no"] = Field("yes", example="yes")
+    billing_matches_id: Literal["yes", "no"] = Field("yes", example="yes")
+    failed_attempts_last_24h: int = Field(0, example=0)
+    ip_country_matches_id_country: Literal["yes", "no"] = Field("yes", example="yes")
+
+    @root_validator(pre=True)
+    def normalize_ui_to_model_fields(cls, values):
+        # amount -> rental_amount
+        if values.get("rental_amount") is None and values.get("amount") is not None:
+            values["rental_amount"] = values["amount"]
+
+        # geoDistance -> distance_from_home_to_branch_km
+        if values.get("distance_from_home_to_branch_km") is None and values.get("geoDistance") is not None:
+            values["distance_from_home_to_branch_km"] = values["geoDistance"]
+
+        # driverAge -> customer_age (best proxy in current model)
+        if values.get("customer_age") is None and values.get("driverAge") is not None:
+            values["customer_age"] = values["driverAge"]
+
+        # tenure (months) -> customer_tenure_days
+        if values.get("customer_tenure_days") is None and values.get("tenure") is not None:
+            try:
+                values["customer_tenure_days"] = int(values["tenure"]) * 30
+            except Exception:
+                pass
+
+        # previousRentals -> previous_rentals_count
+        if values.get("previous_rentals_count") is None and values.get("previousRentals") is not None:
+            values["previous_rentals_count"] = values["previousRentals"]
+
+        # chargebacks -> previous_chargebacks_count
+        if values.get("previous_chargebacks_count") is None and values.get("chargebacks") is not None:
+            values["previous_chargebacks_count"] = values["chargebacks"]
+
+        return values
+
+    @root_validator
+    def ensure_minimums_for_model(cls, values):
+        """
+        Make sure the ML pipeline always receives valid values
+        for required model columns. This prevents 'missing column' issues.
+        """
+        # These are required by the pipeline numeric_features
+        if values.get("rental_amount") is None:
+            values["rental_amount"] = 180.0  # safe demo default
+        if values.get("distance_from_home_to_branch_km") is None:
+            values["distance_from_home_to_branch_km"] = 10.0
+        if values.get("customer_age") is None:
+            values["customer_age"] = 35
+        if values.get("customer_tenure_days") is None:
+            values["customer_tenure_days"] = 180
+        if values.get("previous_rentals_count") is None:
+            values["previous_rentals_count"] = 1
+        if values.get("previous_chargebacks_count") is None:
+            values["previous_chargebacks_count"] = 0
+
+        return values
 
 
 class FraudResponse(BaseModel):
@@ -126,7 +204,6 @@ def train_and_save_model(data_path: str = DATA_PATH, model_path: str = MODEL_PAT
 
     clf.fit(X_train, y_train)
 
-    # Evaluate
     y_proba = clf.predict_proba(X_test)[:, 1]
     auc = roc_auc_score(y_test, y_proba) if y_test.nunique() > 1 else 0.5
     print(f"[Soltrice] Trained Logistic Regression model. ROC-AUC: {auc:.3f}")
@@ -163,13 +240,6 @@ def risk_bucket_from_probability(p: float) -> str:
 
 
 def customer_tier_from_features_and_risk(req: FraudRequest, risk_bucket: str) -> str:
-    """
-    Very simple tier logic for v1:
-
-    - Premium: Low risk AND tenure > 300 days AND prev_rentals >= 3 AND no chargebacks
-    - Standard: not fraud-high-risk and not Premium
-    - Risky: High risk
-    """
     if risk_bucket == "High":
         return "Risky"
 
@@ -185,14 +255,8 @@ def customer_tier_from_features_and_risk(req: FraudRequest, risk_bucket: str) ->
 
 
 def heuristic_risk_from_features(req: FraudRequest) -> float:
-    """
-    Simple rule-based risk score in [0,1] for demo purposes.
-    We will blend this with the ML model output so that the UI
-    moves in a more intuitive way.
-    """
     risk = 0.0
 
-    # Rental amount
     if req.rental_amount > 800:
         risk += 0.25
     elif req.rental_amount > 400:
@@ -200,19 +264,16 @@ def heuristic_risk_from_features(req: FraudRequest) -> float:
     elif req.rental_amount > 200:
         risk += 0.08
 
-    # Lead time – last-minute bookings are risky
     if req.lead_time_hours < 4:
         risk += 0.15
     elif req.lead_time_hours < 12:
         risk += 0.10
 
-    # Distance from home to branch
     if req.distance_from_home_to_branch_km > 150:
         risk += 0.10
     elif req.distance_from_home_to_branch_km > 80:
         risk += 0.05
 
-    # Customer history
     if req.previous_rentals_count == 0:
         risk += 0.05
     if req.previous_chargebacks_count >= 2:
@@ -220,7 +281,6 @@ def heuristic_risk_from_features(req: FraudRequest) -> float:
     elif req.previous_chargebacks_count == 1:
         risk += 0.30
 
-    # Payment & identity
     if req.card_present == "no":
         risk += 0.10
     if req.same_name_on_card == "no":
@@ -228,7 +288,6 @@ def heuristic_risk_from_features(req: FraudRequest) -> float:
     if req.billing_matches_id == "no":
         risk += 0.10
 
-    # Behaviour
     if req.failed_attempts_last_24h >= 5:
         risk += 0.15
     elif req.failed_attempts_last_24h >= 1:
@@ -237,7 +296,6 @@ def heuristic_risk_from_features(req: FraudRequest) -> float:
     if req.ip_country_matches_id_country == "no":
         risk += 0.10
 
-    # Clamp into [0.01, 0.99] so it never becomes exactly 0 or 1
     risk = max(0.01, min(0.99, risk))
     return risk
 
@@ -252,10 +310,9 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# ✅ CORS so browser can call /score from your demo.html
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],                   # later you can restrict to ["https://soltrice.com"]
+    allow_origins=["*"],
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
@@ -272,19 +329,17 @@ def health_check():
 @app.post("/score", response_model=FraudResponse)
 def score(request: FraudRequest):
     try:
-        data = pd.DataFrame([request.dict()])
+        # IMPORTANT: only pass the columns the pipeline expects
+        row = request.dict()
+        data = pd.DataFrame([row])[numeric_features + categorical_features]
 
-        # 1) ML model probability
         try:
             proba_model = float(model_pipeline.predict_proba(data)[0, 1])
         except Exception:
-            # Fallback if model fails for any reason
             proba_model = 0.5
 
-        # 2) Heuristic probability from business rules
         proba_rule = heuristic_risk_from_features(request)
 
-        # 3) Blend them (60% ML, 40% rules for now)
         blended_proba = 0.6 * proba_model + 0.4 * proba_rule
 
         risk_bucket = risk_bucket_from_probability(blended_proba)
@@ -301,8 +356,6 @@ def score(request: FraudRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
-# ✅ Explicit OPTIONS handler for browser preflight
 @app.options("/score")
 def options_score():
     return JSONResponse(
@@ -316,7 +369,7 @@ def options_score():
 
 
 # ============================================================
-# 6. ENTRY POINT NEW
+# 6. ENTRY POINT
 # ============================================================
 
 if __name__ == "__main__":
@@ -328,6 +381,5 @@ if __name__ == "__main__":
         "app:app",
         host="0.0.0.0",
         port=port,
-        reload=False,  # no auto-reload in cloud
+        reload=False,
     )
-
