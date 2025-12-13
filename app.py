@@ -1,9 +1,13 @@
 import os
 from typing import Literal, Optional, Any
 
+import uuid
+import logging
+import json
+import random
 import joblib
 import pandas as pd
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, model_validator
@@ -13,6 +17,15 @@ from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s",
+)
+
+logger = logging.getLogger("soltrice")
+
 
 
 # ============================================================
@@ -457,13 +470,13 @@ def options_score():
 
 
 @app.post("/score", response_model=FraudResponse)
-def score(request: FraudRequest):
+def score(request: FraudRequest, http: Request):
     try:
         # Pydantic v2: model_dump
         row = request.model_dump()
 
         # IMPORTANT: only pass the columns the pipeline expects
-        data = pd.DataFrame([row])[numeric_features + categorical_features]
+        data = pd.DataFrame([row]).reindex(columns=numeric_features + categorical_features)
 
         # 1) ML model probability
         try:
@@ -479,6 +492,53 @@ def score(request: FraudRequest):
 
         risk_bucket = risk_bucket_from_probability(blended_proba)
         tier = customer_tier_from_features_and_risk(request, risk_bucket)
+
+        req_id = str(uuid.uuid4())
+        # 🔍 STRUCTURED LOG (THIS IS WHAT YOU WANT)
+        if random.random() < 0.1:
+            logger.info(json.dumps({
+                "event": "score_request",
+                "request_id": req_id,
+                "client_ip": http.client.host if http.client else None,
+                "env": os.environ.get("RENDER_SERVICE_NAME", "local"),
+                "inputs": {
+                    "rental_amount": request.rental_amount,
+                    "rental_duration_days": request.rental_duration_days,
+                    "lead_time_hours": request.lead_time_hours,
+                    "distance_km": request.distance_from_home_to_branch_km,
+                    "customer_age": request.customer_age,
+                    "customer_tenure_days": request.customer_tenure_days,
+                    "previous_rentals": request.previous_rentals_count,
+                    "chargebacks": request.previous_chargebacks_count,
+                    # demo sliders (heuristic signals)
+                    "emailAge": request.emailAge,
+                    "tenure_months": request.tenure,
+                    "licenseYears": request.licenseYears,
+                    "premiumFlag": request.premiumFlag,
+                    "binRisk": request.binRisk,
+                    "velocity": request.velocity,
+                    "oddHour": request.oddHour,
+                    "proxyFlag": request.proxyFlag,
+                    "ipRisk": request.ipRisk,
+                    "deviceTrust": request.deviceTrust,
+                    "phoneType": request.phoneType,
+                    "booking_channel": request.booking_channel,
+                    "card_present": request.card_present,
+                    "same_name_on_card": request.same_name_on_card,
+                    "billing_matches_id": request.billing_matches_id,
+                    "ip_country_matches_id_country": request.ip_country_matches_id_country,
+                },
+                "scores": {
+                    "ml": round(proba_model, 4),
+                    "heuristic": round(proba_rule, 4),
+                    "final": round(blended_proba, 4),
+                },
+                "decision": {
+                    "risk_bucket": risk_bucket,
+                    "customer_tier": tier,
+                    "model_version": model_version,
+                }
+            }))
 
         return FraudResponse(
             fraud_probability=round(blended_proba, 4),
