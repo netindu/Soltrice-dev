@@ -26,6 +26,8 @@ logging.basicConfig(
 
 logger = logging.getLogger("soltrice")
 
+LOG_SAMPLE_RATE = float(os.environ.get("LOG_SAMPLE_RATE", "0.3"))
+
 
 
 # ============================================================
@@ -468,6 +470,24 @@ def options_score():
         },
     )
 
+def pretty_log_score(req_id, client_ip, inputs, scores, decision):
+    lines = [
+        f"[SCORE] request_id={req_id} client_ip={client_ip}",
+        "  Inputs:",
+    ]
+    for k, v in inputs.items():
+        lines.append(f"    - {k}: {v}")
+
+    lines.append("  Scores:")
+    for k, v in scores.items():
+        lines.append(f"    - {k}: {v}")
+
+    lines.append("  Decision:")
+    for k, v in decision.items():
+        lines.append(f"    - {k}: {v}")
+
+    return "\n".join(lines)
+
 
 @app.post("/score", response_model=FraudResponse)
 def score(request: FraudRequest, http: Request):
@@ -495,7 +515,7 @@ def score(request: FraudRequest, http: Request):
 
         req_id = str(uuid.uuid4())
         # 🔍 STRUCTURED LOG (THIS IS WHAT YOU WANT)
-        if random.random() < 0.1:
+        if random.random() < LOG_SAMPLE_RATE:
             logger.info(json.dumps({
                 "event": "score_request",
                 "request_id": req_id,
@@ -539,6 +559,50 @@ def score(request: FraudRequest, http: Request):
                     "model_version": model_version,
                 }
             }))
+
+            logger.info(
+                pretty_log_score(
+                    req_id=req_id,
+                    client_ip=http.client.host if http.client else None,
+                    inputs={
+                        "rental_amount": request.rental_amount,
+                        "rental_duration_days": request.rental_duration_days,
+                        "lead_time_hours": request.lead_time_hours,
+                        "distance_km": request.distance_from_home_to_branch_km,
+                        "customer_age": request.customer_age,
+                        "customer_tenure_days": request.customer_tenure_days,
+                        "previous_rentals": request.previous_rentals_count,
+                        "chargebacks": request.previous_chargebacks_count,
+                        # demo sliders (heuristic signals)
+                        "emailAge": request.emailAge,
+                        "tenure_months": request.tenure,
+                        "licenseYears": request.licenseYears,
+                        "premiumFlag": request.premiumFlag,
+                        "binRisk": request.binRisk,
+                        "velocity": request.velocity,
+                        "oddHour": request.oddHour,
+                        "proxyFlag": request.proxyFlag,
+                        "ipRisk": request.ipRisk,
+                        "deviceTrust": request.deviceTrust,
+                        "phoneType": request.phoneType,
+                        "booking_channel": request.booking_channel,
+                        "card_present": request.card_present,
+                        "same_name_on_card": request.same_name_on_card,
+                        "billing_matches_id": request.billing_matches_id,
+                        "ip_country_matches_id_country": request.ip_country_matches_id_country,
+                    },
+                    scores={
+                        "ml": round(proba_model, 4),
+                        "heuristic": round(proba_rule, 4),
+                        "final": round(blended_proba, 4),
+                    },
+                    decision={
+                        "risk_bucket": risk_bucket,
+                        "customer_tier": tier,
+                        "model_version": model_version,
+                    }
+                )
+            )
 
         return FraudResponse(
             fraud_probability=round(blended_proba, 4),
