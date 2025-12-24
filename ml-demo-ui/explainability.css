@@ -1,3 +1,5 @@
+/* === Explainability & Breakdown Styling (FIXED) === */
+
 .insight-block {
   font-size: 0.8rem;
   color: #cbd5f5;
@@ -30,7 +32,7 @@
   color: #9ca3af;
 }
 
-/* Breakdown card */
+/* === Breakdown Card === */
 .breakdown-card {
   border-radius: 14px;
   border: 1px solid rgba(148, 163, 184, 0.6);
@@ -66,23 +68,24 @@
   font-weight: 500;
 }
 
+/* Base cell color (non-impact cells) */
 .breakdown-table td {
   font-size: 0.75rem;
   color: #e5e7eb;
   border-top: 1px solid rgba(55, 65, 81, 0.8);
 }
 
-/* Impacts */
-.text-positive {
-  color: #4ade80;
+/* === Impact Colors (FIX: higher specificity than base td rule) === */
+.breakdown-table td.text-positive {
+  color: #4ade80; /* green = risk reducing */
 }
 
-.text-negative {
-  color: #f97316;
+.breakdown-table td.text-negative {
+  color: #f97316; /* orange = elevated risk */
 }
 
-.text-critical {
-  color: #fb7185;
+.breakdown-table td.text-critical {
+  color: #fb7185; /* red/pink = critical risk */
 }
 
 .footer-note {
