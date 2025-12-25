@@ -105,7 +105,7 @@
 .impact-legend {
   display: flex;
   gap: 12px;
-  font-size: 0.65rem;
+  font-size: 1.15rem;
   margin: 6px 0 8px;
   opacity: 0.85;
 }
@@ -113,7 +113,7 @@
 .legend-item {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   white-space: nowrap;
 }
 
