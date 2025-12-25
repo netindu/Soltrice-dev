@@ -73,6 +73,7 @@
   font-size: 0.75rem;
   color: #e5e7eb;
   border-top: 1px solid rgba(55, 65, 81, 0.8);
+  transition: color 0.25s ease;
 }
 
 /* === Impact Colors (FIX: higher specificity than base td rule) === */
@@ -94,3 +95,19 @@
   text-align: right;
   margin-top: 4px;
 }
+/* === Impact Legend === */
+.impact-legend {
+  display: flex;
+  gap: 12px;
+  font-size: 0.65rem;
+  margin: 6px 0 8px;
+  opacity: 0.85;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+

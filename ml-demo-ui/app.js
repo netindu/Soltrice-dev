@@ -310,32 +310,50 @@ async function scoreWithApi(payload) {
 }
 
 let scoreTimer = null;
+let slowMsgTimer = null;
+let scoreReqSeq = 0;
 
 function requestScoreDebounced(inputs, delay = 250) {
+  // cancel any pending score request
   if (scoreTimer) clearTimeout(scoreTimer);
 
-  // quick UI hint while waiting
+  // cancel any pending "Updating score..." message
+  if (slowMsgTimer) clearTimeout(slowMsgTimer);
+
   const metaEl = document.getElementById("sphereMeta");
+  const mySeq = ++scoreReqSeq;
 
   // Show a neutral message only if the API call is taking noticeable time
-  let slowMsgTimer = null;
   if (metaEl) {
     slowMsgTimer = setTimeout(() => {
-      metaEl.textContent = "Updating score…";
-    }, 600); // only show if request is slower than 600ms
+      // Only update if this is still the latest request
+      if (mySeq === scoreReqSeq) metaEl.textContent = "Updating score…";
+    }, 600);
   }
-
 
   scoreTimer = setTimeout(async () => {
     try {
       const data = await scoreWithApi(inputs);
+
+      // Ignore late responses from earlier requests
+      if (mySeq !== scoreReqSeq) return;
+
       if (slowMsgTimer) clearTimeout(slowMsgTimer);
 
+      // Prefer backend's blended final score when present (0..1)
+      const p =
+        data?.scores?.final ??
+        data?.fraud_probability ??
+        0.5;
 
-      // API returns fraud_probability (0..1). Convert to 0..100 like your UI expects.
-      const score = Math.round(clamp((data.fraud_probability ?? 0.5) * 100, 0, 100));
+      const score = Math.round(clamp(p * 100, 0, 100));
       updateScoreUI(score, inputs);
     } catch (err) {
+      // Ignore late errors from earlier requests
+      if (mySeq !== scoreReqSeq) return;
+
+      if (slowMsgTimer) clearTimeout(slowMsgTimer);
+
       console.error(err);
 
       // fallback to local scoring so UI still works if API cold-starts/errors
